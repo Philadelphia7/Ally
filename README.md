@@ -20,6 +20,8 @@ The service uses:
 
 Embedding calls are batched during ingestion to stay below Azure OpenAI request limits. Tune `EMBEDDING_BATCH_SIZE` and `EMBEDDING_BATCH_MAX_CHARACTERS` in `.env` if your embedding deployment needs smaller requests.
 
+Chat completions omit `temperature` by default because some Azure OpenAI models only support the default value. Set `CHAT_TEMPERATURE` only when your deployed model supports it.
+
 ## Setup
 
 Use the existing virtual environment:

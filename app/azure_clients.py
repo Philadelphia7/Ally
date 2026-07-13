@@ -43,8 +43,9 @@ class AzureOpenAIClient:
         kwargs: dict[str, Any] = {
             "model": self.settings.azure_openai_deployment_name,
             "messages": messages,
-            "temperature": 0.1,
         }
+        if self.settings.chat_temperature is not None:
+            kwargs["temperature"] = self.settings.chat_temperature
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"

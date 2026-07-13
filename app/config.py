@@ -39,6 +39,7 @@ class Settings(BaseSettings):
         default="2024-10-21",
         alias="AZURE_OPENAI_API_VERSION",
     )
+    chat_temperature: float | None = Field(default=None, alias="CHAT_TEMPERATURE")
 
     document_intelligence_endpoint: str | None = Field(
         default=None,
