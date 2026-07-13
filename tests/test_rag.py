@@ -56,6 +56,8 @@ def test_rag_system_prompt_requests_concise_plain_language(tmp_path):
     system_prompt = chat.messages[0][0]["content"]
     assert "2 to 3 short sentences" in system_prompt
     assert "plain language" in system_prompt
+    assert "Do not give a generic answer" in system_prompt
+    assert "accurate and specific" in system_prompt
     assert "Do not include source names, page numbers, citations" in system_prompt
 
 

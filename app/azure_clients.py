@@ -1,11 +1,13 @@
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import azure.cognitiveservices.speech as speechsdk
 from openai import AzureOpenAI
 
 from app.config import Settings
+
+AudioFormat = Literal["wav", "mp3"]
 
 
 class AzureOpenAIClient:
@@ -82,8 +84,8 @@ class AzureSpeechClient:
             raise RuntimeError(f"Speech transcription failed: {result.reason}")
         return result.text
 
-    def synthesize(self, text: str) -> bytes:
-        speech_config = build_speech_config(self.settings)
+    def synthesize(self, text: str, audio_format: AudioFormat = "wav") -> bytes:
+        speech_config = build_speech_config(self.settings, audio_format=audio_format)
         synthesizer = speechsdk.SpeechSynthesizer(
             speech_config=speech_config,
             audio_config=None,
@@ -94,16 +96,33 @@ class AzureSpeechClient:
         return bytes(result.audio_data)
 
 
-def build_speech_config(settings: Settings) -> speechsdk.SpeechConfig:
+def build_speech_config(
+    settings: Settings,
+    audio_format: AudioFormat = "wav",
+) -> speechsdk.SpeechConfig:
     speech_config = speechsdk.SpeechConfig(
         subscription=settings.speech_key,
         region=settings.speech_region,
     )
     speech_config.speech_synthesis_voice_name = settings.speech_voice_name
-    speech_config.set_speech_synthesis_output_format(
-        speechsdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm
-    )
+    speech_config.set_speech_synthesis_output_format(_speech_output_format(audio_format))
     return speech_config
+
+
+def content_type_for_audio_format(audio_format: AudioFormat) -> str:
+    if audio_format == "wav":
+        return "audio/wav"
+    if audio_format == "mp3":
+        return "audio/mpeg"
+    raise ValueError(f"Unsupported audio format: {audio_format}")
+
+
+def _speech_output_format(audio_format: AudioFormat):
+    if audio_format == "wav":
+        return speechsdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm
+    if audio_format == "mp3":
+        return speechsdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3
+    raise ValueError(f"Unsupported audio format: {audio_format}")
 
 
 def iter_embedding_batches(

@@ -144,7 +144,8 @@ Runs the full voice assistant pipeline.
 
 ```bash
 curl -X POST http://127.0.0.1:8081/voice/ask \
-  -F "audio=@question.wav"
+  -F "audio=@question.wav" \
+  -F "audio_format=wav"
 ```
 
 Flow:
@@ -153,7 +154,9 @@ Flow:
 audio upload -> Azure Speech transcription -> RAG answer -> Azure Speech synthesis
 ```
 
-Response fields include `transcript`, `answer`, `citations`, `tool_results`, `audio_base64`, and `audio_content_type`.
+Set `audio_format` to `wav` or `mp3`. It defaults to `wav`.
+
+Response fields include `transcript`, `answer`, `citations`, `tool_results`, `audio_base64`, `audio_content_type`, and `audio_format`.
 
 ### `POST /speech/transcribe`
 
@@ -179,19 +182,20 @@ Converts text to speech only. Use this when you already have text and only need 
 ```bash
 curl -X POST http://127.0.0.1:8081/speech/synthesize \
   -H "Content-Type: application/json" \
-  -d '{"text":"Take your medicine after food."}'
+  -d '{"text":"Take your medicine after food.","audio_format":"wav"}'
 ```
 
 Example response:
 
 ```json
 {
-  "audio_base64": "<base64 WAV audio>",
-  "audio_content_type": "audio/wav"
+  "audio_base64": "<base64 audio>",
+  "audio_content_type": "audio/wav",
+  "audio_format": "wav"
 }
 ```
 
-Speech synthesis returns base64-encoded WAV audio using RIFF 24 kHz, 16-bit, mono PCM. Decode `audio_base64` on the client to play or save the `.wav` file.
+Set `audio_format` to `wav` or `mp3`. WAV uses RIFF 24 kHz, 16-bit, mono PCM. MP3 uses 24 kHz, 48 kilobit mono MPEG audio. Decode `audio_base64` on the client to play or save the audio file.
 
 ### `GET /tools`
 
@@ -213,8 +217,9 @@ It currently returns a transparent “database not configured” result unless `
 
 - Input audio is passed to Azure Speech from a temporary file.
 - Output audio from `/voice/ask` and `/speech/synthesize` is JSON-safe base64.
-- Output content type is `audio/wav`.
-- Current synthesis format is RIFF 24 kHz, 16-bit, mono PCM.
+- Supported output formats are `wav` and `mp3`.
+- `wav` returns content type `audio/wav` and uses RIFF 24 kHz, 16-bit, mono PCM.
+- `mp3` returns content type `audio/mpeg` and uses 24 kHz, 48 kilobit mono MPEG audio.
 - Voice is controlled with `SPEECH_VOICE_NAME`, defaulting to `en-NG-EzinneNeural`.
 
 ## Project Structure

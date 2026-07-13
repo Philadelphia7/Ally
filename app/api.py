@@ -2,9 +2,9 @@ import base64
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
-from app.azure_clients import AzureOpenAIClient, AzureSpeechClient
+from app.azure_clients import AzureOpenAIClient, AzureSpeechClient, content_type_for_audio_format
 from app.config import Settings, get_settings
 from app.document_loaders import DocumentLoader
 from app.ingestion import IngestionService
@@ -17,6 +17,7 @@ from app.models import (
     SynthesisResponse,
     TranscriptionResponse,
     VoiceAnswerResponse,
+    AudioFormat,
 )
 from app.rag import RAGService
 from app.tools import build_default_registry
@@ -143,10 +144,13 @@ def create_app(
         summary="Ask with audio and receive spoken answer",
         description=(
             "Runs the full voice pipeline: upload audio, transcribe it with Azure Speech, answer "
-            "through RAG, then synthesize the answer to base64 WAV audio."
+            "through RAG, then synthesize the answer to base64 WAV or MP3 audio."
         ),
     )
-    async def voice_ask(audio: UploadFile = File(...)) -> VoiceAnswerResponse:
+    async def voice_ask(
+        audio: UploadFile = File(...),
+        audio_format: AudioFormat = Form(default="wav"),
+    ) -> VoiceAnswerResponse:
         suffix = Path(audio.filename or "audio.wav").suffix or ".wav"
         with tempfile.NamedTemporaryFile(suffix=suffix) as audio_file:
             audio_file.write(await audio.read())
@@ -154,7 +158,10 @@ def create_app(
             try:
                 transcript = get_speech_client().transcribe_file(Path(audio_file.name))
                 answer = get_rag_service().answer(transcript)
-                audio_bytes = get_speech_client().synthesize(answer.answer)
+                audio_bytes = get_speech_client().synthesize(
+                    answer.answer,
+                    audio_format=audio_format,
+                )
             except FileNotFoundError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             except Exception as exc:
@@ -167,7 +174,8 @@ def create_app(
             citations=answer.citations,
             tool_results=answer.tool_results,
             audio_base64=base64.b64encode(audio_bytes).decode("ascii"),
-            audio_content_type="audio/wav",
+            audio_content_type=content_type_for_audio_format(audio_format),
+            audio_format=audio_format,
         )
 
     @app.post(
@@ -194,18 +202,21 @@ def create_app(
         tags=["Speech"],
         summary="Convert text to speech",
         description=(
-            "Converts text to speech with Azure Speech and returns base64 WAV audio "
-            "using RIFF 24 kHz, 16-bit, mono PCM."
+            "Converts text to speech with Azure Speech and returns base64 WAV or MP3 audio."
         ),
     )
     def synthesize(request: SynthesisRequest) -> SynthesisResponse:
         try:
-            audio_bytes = get_speech_client().synthesize(request.text)
+            audio_bytes = get_speech_client().synthesize(
+                request.text,
+                audio_format=request.audio_format,
+            )
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         return SynthesisResponse(
             audio_base64=base64.b64encode(audio_bytes).decode("ascii"),
-            audio_content_type="audio/wav",
+            audio_content_type=content_type_for_audio_format(request.audio_format),
+            audio_format=request.audio_format,
         )
 
     return app

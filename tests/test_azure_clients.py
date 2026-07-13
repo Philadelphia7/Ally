@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from app.azure_clients import (
     AzureOpenAIClient,
     build_speech_config,
+    content_type_for_audio_format,
     iter_embedding_batches,
 )
 
@@ -77,7 +78,7 @@ def test_complete_includes_temperature_when_configured():
     assert completions.kwargs["temperature"] == 1.0
 
 
-def test_build_speech_config_uses_wav_output_format():
+def test_build_speech_config_uses_wav_output_format_by_default():
     settings = SimpleNamespace(
         speech_key="key",
         speech_region="westus",
@@ -87,3 +88,16 @@ def test_build_speech_config_uses_wav_output_format():
     speech_config = build_speech_config(settings)
 
     assert speech_config.speech_synthesis_output_format_string == "riff-24khz-16bit-mono-pcm"
+
+
+def test_build_speech_config_supports_mp3_output_format():
+    settings = SimpleNamespace(
+        speech_key="key",
+        speech_region="westus",
+        speech_voice_name="en-NG-EzinneNeural",
+    )
+
+    speech_config = build_speech_config(settings, audio_format="mp3")
+
+    assert speech_config.speech_synthesis_output_format_string == "audio-24khz-48kbitrate-mono-mp3"
+    assert content_type_for_audio_format("mp3") == "audio/mpeg"

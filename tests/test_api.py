@@ -30,8 +30,8 @@ class FakeSpeechClient:
     def transcribe_file(self, audio_path):
         return "What is diabetes?"
 
-    def synthesize(self, text):
-        return b"audio-bytes"
+    def synthesize(self, text, audio_format="wav"):
+        return f"{audio_format}-audio-bytes".encode()
 
 
 def test_ask_route_returns_answer():
@@ -81,6 +81,26 @@ def test_voice_route_returns_transcript_and_audio_metadata():
     assert payload["audio_content_type"] == "audio/wav"
 
 
+def test_voice_route_can_return_mp3_audio():
+    app = create_app(
+        rag_service=FakeRAGService(),
+        ingestion_service=FakeIngestionService(),
+        speech_client=FakeSpeechClient(),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/voice/ask",
+        data={"audio_format": "mp3"},
+        files={"audio": ("question.wav", b"audio", "audio/wav")},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["audio_content_type"] == "audio/mpeg"
+    assert payload["audio_format"] == "mp3"
+
+
 def test_speech_transcribe_route_returns_transcript():
     app = create_app(
         rag_service=FakeRAGService(),
@@ -113,5 +133,26 @@ def test_speech_synthesize_route_returns_audio_metadata():
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["audio_base64"] == "YXVkaW8tYnl0ZXM="
+    assert payload["audio_base64"] == "d2F2LWF1ZGlvLWJ5dGVz"
     assert payload["audio_content_type"] == "audio/wav"
+    assert payload["audio_format"] == "wav"
+
+
+def test_speech_synthesize_route_can_return_mp3_audio():
+    app = create_app(
+        rag_service=FakeRAGService(),
+        ingestion_service=FakeIngestionService(),
+        speech_client=FakeSpeechClient(),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/speech/synthesize",
+        json={"text": "Take your medicine after food.", "audio_format": "mp3"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["audio_base64"] == "bXAzLWF1ZGlvLWJ5dGVz"
+    assert payload["audio_content_type"] == "audio/mpeg"
+    assert payload["audio_format"] == "mp3"

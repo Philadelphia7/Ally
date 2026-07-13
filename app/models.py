@@ -1,6 +1,8 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+AudioFormat = Literal["wav", "mp3"]
 
 
 class AskRequest(BaseModel):
@@ -40,7 +42,8 @@ class IngestResponse(BaseModel):
 class VoiceAnswerResponse(AnswerResponse):
     transcript: str
     audio_base64: str
-    audio_content_type: str = "audio/wav"
+    audio_content_type: str
+    audio_format: AudioFormat
 
 
 class TranscriptionResponse(BaseModel):
@@ -53,11 +56,17 @@ class SynthesisRequest(BaseModel):
         description="Text to convert to speech.",
         examples=["Take your medicine after food."],
     )
+    audio_format: AudioFormat = Field(
+        default="wav",
+        description="Audio export format. Use wav for RIFF PCM or mp3 for compressed MPEG audio.",
+        examples=["wav"],
+    )
 
 
 class SynthesisResponse(BaseModel):
-    audio_base64: str = Field(description="Base64-encoded WAV audio bytes.")
-    audio_content_type: str = "audio/wav"
+    audio_base64: str = Field(description="Base64-encoded audio bytes.")
+    audio_content_type: str
+    audio_format: AudioFormat
 
 
 class HealthResponse(BaseModel):
