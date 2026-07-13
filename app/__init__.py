@@ -1,0 +1,2 @@
+"""Healthwise RAG FastAPI application."""
+
