@@ -22,11 +22,18 @@ class AzureOpenAIClient:
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        response = self.client.embeddings.create(
-            model=self.settings.azure_openai_embedding_deployment_name,
-            input=texts,
-        )
-        return [item.embedding for item in response.data]
+        embeddings: list[list[float]] = []
+        for batch in iter_embedding_batches(
+            texts,
+            max_batch_items=self.settings.embedding_batch_size,
+            max_batch_characters=self.settings.embedding_batch_max_characters,
+        ):
+            response = self.client.embeddings.create(
+                model=self.settings.azure_openai_embedding_deployment_name,
+                input=batch,
+            )
+            embeddings.extend(item.embedding for item in response.data)
+        return embeddings
 
     def complete(
         self,
@@ -92,3 +99,32 @@ class AzureSpeechClient:
             raise RuntimeError(f"Speech synthesis failed: {result.reason}")
         return bytes(result.audio_data)
 
+
+def iter_embedding_batches(
+    texts: list[str],
+    max_batch_items: int,
+    max_batch_characters: int,
+):
+    if max_batch_items <= 0:
+        raise ValueError("max_batch_items must be greater than zero")
+    if max_batch_characters <= 0:
+        raise ValueError("max_batch_characters must be greater than zero")
+
+    batch: list[str] = []
+    batch_characters = 0
+    for text in texts:
+        text_characters = len(text)
+        would_exceed_items = len(batch) >= max_batch_items
+        would_exceed_characters = (
+            batch_characters + text_characters > max_batch_characters
+        )
+        if batch and (would_exceed_items or would_exceed_characters):
+            yield batch
+            batch = []
+            batch_characters = 0
+
+        batch.append(text)
+        batch_characters += text_characters
+
+    if batch:
+        yield batch

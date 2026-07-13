@@ -18,6 +18,8 @@ The service uses:
 - Azure Speech for audio transcription and text-to-speech.
 - A function-calling tool registry ready for database-backed medication questions such as “Did I use my drug yesterday?”
 
+Embedding calls are batched during ingestion to stay below Azure OpenAI request limits. Tune `EMBEDDING_BATCH_SIZE` and `EMBEDDING_BATCH_MAX_CHARACTERS` in `.env` if your embedding deployment needs smaller requests.
+
 ## Setup
 
 Use the existing virtual environment:

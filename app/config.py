@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     chunk_size: int = 1200
     chunk_overlap: int = 200
     retrieval_top_k: int = 5
+    embedding_batch_size: int = Field(default=64, alias="EMBEDDING_BATCH_SIZE")
+    embedding_batch_max_characters: int = Field(
+        default=120_000,
+        alias="EMBEDDING_BATCH_MAX_CHARACTERS",
+    )
 
     azure_openai_api_key: str | None = Field(default=None, alias="AZURE_OPENAI_API_KEY")
     azure_openai_base_url: str | None = Field(default=None, alias="AZURE_OPENAI_BASE_URL")
@@ -73,4 +78,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
