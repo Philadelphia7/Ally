@@ -71,10 +71,7 @@ class AzureSpeechClient:
         self.settings = settings
 
     def transcribe_file(self, audio_path: Path) -> str:
-        speech_config = speechsdk.SpeechConfig(
-            subscription=self.settings.speech_key,
-            region=self.settings.speech_region,
-        )
+        speech_config = build_speech_config(self.settings)
         audio_config = speechsdk.audio.AudioConfig(filename=str(audio_path))
         recognizer = speechsdk.SpeechRecognizer(
             speech_config=speech_config,
@@ -86,11 +83,7 @@ class AzureSpeechClient:
         return result.text
 
     def synthesize(self, text: str) -> bytes:
-        speech_config = speechsdk.SpeechConfig(
-            subscription=self.settings.speech_key,
-            region=self.settings.speech_region,
-        )
-        speech_config.speech_synthesis_voice_name = self.settings.speech_voice_name
+        speech_config = build_speech_config(self.settings)
         synthesizer = speechsdk.SpeechSynthesizer(
             speech_config=speech_config,
             audio_config=None,
@@ -99,6 +92,18 @@ class AzureSpeechClient:
         if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
             raise RuntimeError(f"Speech synthesis failed: {result.reason}")
         return bytes(result.audio_data)
+
+
+def build_speech_config(settings: Settings) -> speechsdk.SpeechConfig:
+    speech_config = speechsdk.SpeechConfig(
+        subscription=settings.speech_key,
+        region=settings.speech_region,
+    )
+    speech_config.speech_synthesis_voice_name = settings.speech_voice_name
+    speech_config.set_speech_synthesis_output_format(
+        speechsdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm
+    )
+    return speech_config
 
 
 def iter_embedding_batches(

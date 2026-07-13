@@ -1,6 +1,10 @@
 from types import SimpleNamespace
 
-from app.azure_clients import AzureOpenAIClient, iter_embedding_batches
+from app.azure_clients import (
+    AzureOpenAIClient,
+    build_speech_config,
+    iter_embedding_batches,
+)
 
 
 def test_iter_embedding_batches_respects_item_and_character_limits():
@@ -71,3 +75,15 @@ def test_complete_includes_temperature_when_configured():
     client.complete([{"role": "user", "content": "hello"}])
 
     assert completions.kwargs["temperature"] == 1.0
+
+
+def test_build_speech_config_uses_wav_output_format():
+    settings = SimpleNamespace(
+        speech_key="key",
+        speech_region="westus",
+        speech_voice_name="en-NG-EzinneNeural",
+    )
+
+    speech_config = build_speech_config(settings)
+
+    assert speech_config.speech_synthesis_output_format_string == "riff-24khz-16bit-mono-pcm"

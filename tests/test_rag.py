@@ -39,6 +39,25 @@ def test_rag_answer_includes_citations_from_retrieved_context(tmp_path):
     assert "Use nutrition guidance." in chat.messages[0][1]["content"]
 
 
+def test_rag_system_prompt_requests_concise_plain_language(tmp_path):
+    index = LocalVectorIndex(tmp_path / "index.json")
+    index.add(TextChunk("guide.pdf:1:0", "guide.pdf", 1, "Use nutrition guidance."), [1.0, 0.0])
+    index.save()
+    chat = FakeChatClient([{"content": "Follow the nutrition guidance.", "tool_calls": []}])
+    service = RAGService(
+        index=index,
+        embedder=FakeEmbedder(),
+        chat_client=chat,
+        tools=build_default_registry(None),
+    )
+
+    service.answer("What should I do?")
+
+    system_prompt = chat.messages[0][0]["content"]
+    assert "2 to 3 short sentences" in system_prompt
+    assert "plain language" in system_prompt
+
+
 def test_rag_executes_tool_calls_before_final_answer(tmp_path):
     index = LocalVectorIndex(tmp_path / "index.json")
     index.add(TextChunk("guide.pdf:1:0", "guide.pdf", 1, "Medication adherence matters."), [1.0, 0.0])
@@ -86,4 +105,3 @@ def test_rag_requires_existing_index(tmp_path):
         assert "Vector index" in str(exc)
     else:
         raise AssertionError("Expected missing index error")
-

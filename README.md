@@ -22,6 +22,8 @@ Embedding calls are batched during ingestion to stay below Azure OpenAI request 
 
 Chat completions omit `temperature` by default because some Azure OpenAI models only support the default value. Set `CHAT_TEMPERATURE` only when your deployed model supports it.
 
+Answers are prompted to stay concise by default: plain language, normally 2 to 3 short sentences. Speech synthesis returns base64-encoded WAV audio using RIFF 24 kHz, 16-bit, mono PCM.
+
 ## Setup
 
 Use the existing virtual environment:

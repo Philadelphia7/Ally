@@ -90,14 +90,14 @@ class RAGService:
         )
         system_prompt = (
             "You are Ally, a careful health assistant for question answering over provided "
-            "health guidance. Use only the retrieved context and tool results. If evidence is "
-            "insufficient, say so. Cite sources by filename and page. Do not give emergency "
-            "medical instructions beyond advising the user to contact a qualified clinician or "
-            "local emergency services for urgent symptoms."
+            "health guidance. Answer in plain language, normally in 2 to 3 short sentences, "
+            "unless the user asks for more detail. Use only the retrieved context and tool "
+            "results. If evidence is insufficient, say so. Cite sources briefly by filename "
+            "and page. Do not give emergency medical instructions beyond advising the user to "
+            "contact a qualified clinician or local emergency services for urgent symptoms."
         )
         user_prompt = f"Question: {question}\n\nRetrieved context:\n{context}"
         return [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
-
