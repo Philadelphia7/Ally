@@ -10,14 +10,14 @@ This repo includes a FastAPI service for concise health question answering over 
 /Users/sam/Documents/Ellipsis-Care/data
 ```
 
-The API is designed for regular, simple use such as elder-care support. RAG answers are prompted to use plain language and stay around 2 to 3 short sentences unless the user asks for more detail.
+The API is designed for regular, simple use such as elder-care support. RAG answers are prompted to use plain language and stay around 2 to 3 short sentences unless the user asks for more detail. The `answer` text avoids source names, page references, markdown, bullet points, and hard-to-say abbreviations so it works well for speech playback.
 
 ## What It Does
 
 - Builds a local persisted vector index at `.ally_index/index.json`.
 - Extracts PDF text with Azure Document Intelligence when configured, with local PDF extraction as fallback.
 - Embeds document chunks with Azure OpenAI in safe batches.
-- Answers text questions with retrieved context, citations, and function-call results.
+- Answers text questions with retrieved context, separate citation metadata, and function-call results.
 - Supports a full voice flow: audio question -> transcription -> RAG answer -> synthesized speech.
 - Supports standalone speech-to-text and text-to-speech endpoints.
 - Includes a function-calling tool registry for future database-backed medication questions such as “Did I use my drug yesterday?”
@@ -134,8 +134,8 @@ curl -X POST http://127.0.0.1:8081/ask \
 Response fields:
 
 - `question`: the input question.
-- `answer`: concise plain-language answer.
-- `citations`: retrieved source chunks with filename, page, score, and text.
+- `answer`: concise plain-language answer for display or speech. It should not include source names or page references.
+- `citations`: retrieved source chunks with filename, page, score, and text. Use this for debugging, audit trails, or an optional “sources” view.
 - `tool_results`: any function-call results, such as medication adherence checks.
 
 ### `POST /voice/ask`
@@ -238,4 +238,3 @@ app/vector_index.py     Local JSON vector index
 ./.venv/bin/python -m pytest -v
 ./.venv/bin/python -m compileall app main.py
 ```
-

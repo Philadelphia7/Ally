@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Protocol
 
 from app.models import AnswerResponse, Citation
@@ -67,7 +68,7 @@ class RAGService:
 
         return AnswerResponse(
             question=question,
-            answer=answer,
+            answer=clean_spoken_answer(answer),
             citations=[
                 Citation(
                     source=result.chunk.source,
@@ -91,13 +92,41 @@ class RAGService:
         system_prompt = (
             "You are Ally, a careful health assistant for question answering over provided "
             "health guidance. Answer in plain language, normally in 2 to 3 short sentences, "
-            "unless the user asks for more detail. Use only the retrieved context and tool "
-            "results. If evidence is insufficient, say so. Cite sources briefly by filename "
-            "and page. Do not give emergency medical instructions beyond advising the user to "
-            "contact a qualified clinician or local emergency services for urgent symptoms."
+            "unless the user asks for more detail. Use words that sound natural when spoken "
+            "out loud. Avoid abbreviations when a simple phrase works. Do not include source "
+            "names, page numbers, citations, markdown, or bullet points in the answer text; "
+            "citations are returned separately by the API. Use only the retrieved context and "
+            "tool results. If evidence is insufficient, say so. Do not give emergency medical "
+            "instructions beyond advising the user to contact a qualified clinician or local "
+            "emergency services for urgent symptoms."
         )
         user_prompt = f"Question: {question}\n\nRetrieved context:\n{context}"
         return [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
+
+
+def clean_spoken_answer(answer: str) -> str:
+    cleaned = answer.replace("**", "")
+    cleaned = cleaned.replace("e.g.,", "for example,")
+    cleaned = cleaned.replace("e.g.", "for example")
+    cleaned = cleaned.replace("i.e.,", "that is,")
+    cleaned = cleaned.replace("i.e.", "that is")
+    cleaned = cleaned.replace("&", "and")
+    cleaned = cleaned.replace("_", " ")
+    cleaned = re.sub(r"\((for example, [^)]*)\)", r", \1", cleaned, flags=re.IGNORECASE)
+    cleaned = _remove_source_citation_parentheticals(cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(r"\s+([.,;:!?])", r"\1", cleaned)
+    return cleaned.strip()
+
+
+def _remove_source_citation_parentheticals(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        content = match.group(1)
+        if re.search(r"\b(p|page)\s*\d+\b", content, flags=re.IGNORECASE):
+            return ""
+        return match.group(0)
+
+    return re.sub(r"\(([^)]*)\)", replace, text)

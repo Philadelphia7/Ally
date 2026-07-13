@@ -1,5 +1,5 @@
 from app.chunking import TextChunk
-from app.rag import RAGService
+from app.rag import RAGService, clean_spoken_answer
 from app.tools import build_default_registry
 from app.vector_index import LocalVectorIndex
 
@@ -56,6 +56,50 @@ def test_rag_system_prompt_requests_concise_plain_language(tmp_path):
     system_prompt = chat.messages[0][0]["content"]
     assert "2 to 3 short sentences" in system_prompt
     assert "plain language" in system_prompt
+    assert "Do not include source names, page numbers, citations" in system_prompt
+
+
+def test_rag_cleans_citations_and_audio_unfriendly_abbreviations(tmp_path):
+    index = LocalVectorIndex(tmp_path / "index.json")
+    index.add(TextChunk("guide.pdf:1:0", "guide.pdf", 1, "Use nutrition guidance."), [1.0, 0.0])
+    index.save()
+    chat = FakeChatClient(
+        [
+            {
+                "content": (
+                    "Recommended steps include healthy diets (e.g., less trans-fat), "
+                    "physical activity, and stopping tobacco use (WHO_PEN p120; WHO_DIET p17)."
+                ),
+                "tool_calls": [],
+            }
+        ]
+    )
+    service = RAGService(
+        index=index,
+        embedder=FakeEmbedder(),
+        chat_client=chat,
+        tools=build_default_registry(None),
+    )
+
+    answer = service.answer("What should I do?")
+
+    assert answer.answer == (
+        "Recommended steps include healthy diets, for example, less trans-fat, "
+        "physical activity, and stopping tobacco use."
+    )
+    assert answer.citations[0].source == "guide.pdf"
+
+
+def test_clean_spoken_answer_removes_markdown_source_codes_and_page_references():
+    answer = clean_spoken_answer(
+        "**Use primary care screening** and support self-care (WHO_PEN p120; WHO_DIET p17). "
+        "This lowers risk e.g. through better diet."
+    )
+
+    assert answer == (
+        "Use primary care screening and support self-care. "
+        "This lowers risk for example through better diet."
+    )
 
 
 def test_rag_executes_tool_calls_before_final_answer(tmp_path):
