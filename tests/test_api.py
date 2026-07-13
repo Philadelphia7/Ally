@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.api import create_app
-from app.models import AnswerResponse, Citation, IngestResponse, VoiceAnswerResponse
+from app.models import AnswerResponse, Citation, IngestResponse
 
 
 class FakeRAGService:
@@ -80,3 +80,38 @@ def test_voice_route_returns_transcript_and_audio_metadata():
     assert payload["transcript"] == "What is diabetes?"
     assert payload["audio_content_type"] == "audio/wav"
 
+
+def test_speech_transcribe_route_returns_transcript():
+    app = create_app(
+        rag_service=FakeRAGService(),
+        ingestion_service=FakeIngestionService(),
+        speech_client=FakeSpeechClient(),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/speech/transcribe",
+        files={"audio": ("question.wav", b"audio", "audio/wav")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"transcript": "What is diabetes?"}
+
+
+def test_speech_synthesize_route_returns_audio_metadata():
+    app = create_app(
+        rag_service=FakeRAGService(),
+        ingestion_service=FakeIngestionService(),
+        speech_client=FakeSpeechClient(),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/speech/synthesize",
+        json={"text": "Take your medicine after food."},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["audio_base64"] == "YXVkaW8tYnl0ZXM="
+    assert payload["audio_content_type"] == "audio/wav"

@@ -4,7 +4,11 @@ from pydantic import BaseModel, Field
 
 
 class AskRequest(BaseModel):
-    question: str = Field(min_length=1)
+    question: str = Field(
+        min_length=1,
+        description="Plain-language health or medication question to answer.",
+        examples=["What are recommended interventions for chronic disease prevention?"],
+    )
 
 
 class Citation(BaseModel):
@@ -39,10 +43,26 @@ class VoiceAnswerResponse(AnswerResponse):
     audio_content_type: str = "audio/wav"
 
 
+class TranscriptionResponse(BaseModel):
+    transcript: str = Field(description="Recognized text from the uploaded audio.")
+
+
+class SynthesisRequest(BaseModel):
+    text: str = Field(
+        min_length=1,
+        description="Text to convert to speech.",
+        examples=["Take your medicine after food."],
+    )
+
+
+class SynthesisResponse(BaseModel):
+    audio_base64: str = Field(description="Base64-encoded WAV audio bytes.")
+    audio_content_type: str = "audio/wav"
+
+
 class HealthResponse(BaseModel):
     status: str
     azure_openai_configured: bool
     document_intelligence_configured: bool
     speech_configured: bool
     index_exists: bool
-

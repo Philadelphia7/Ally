@@ -1,28 +1,26 @@
 # Ally
 
-Ally is a medication and adherence system device that uses a multimodal sensor to predict patient activity for confirmation of medication use, plus NLP for communication.
+Ally is a medication and adherence system device that uses a multimodal sensor to predict patient activity for confirmation of medication use, plus NLP for simple patient communication.
 
 ## Healthwise RAG API
 
-This repo now includes a FastAPI question-answering service over the health guidance PDFs in:
+This repo includes a FastAPI service for concise health question answering over the Healthwise PDF corpus in:
 
 ```text
 /Users/sam/Documents/Ellipsis-Care/data
 ```
 
-The service uses:
+The API is designed for regular, simple use such as elder-care support. RAG answers are prompted to use plain language and stay around 2 to 3 short sentences unless the user asks for more detail.
 
-- Azure OpenAI for embeddings and chat responses.
-- Azure Document Intelligence for PDF extraction when configured, with local PDF extraction as a fallback.
-- A local persisted vector index at `.ally_index/index.json`.
-- Azure Speech for audio transcription and text-to-speech.
-- A function-calling tool registry ready for database-backed medication questions such as “Did I use my drug yesterday?”
+## What It Does
 
-Embedding calls are batched during ingestion to stay below Azure OpenAI request limits. Tune `EMBEDDING_BATCH_SIZE` and `EMBEDDING_BATCH_MAX_CHARACTERS` in `.env` if your embedding deployment needs smaller requests.
-
-Chat completions omit `temperature` by default because some Azure OpenAI models only support the default value. Set `CHAT_TEMPERATURE` only when your deployed model supports it.
-
-Answers are prompted to stay concise by default: plain language, normally 2 to 3 short sentences. Speech synthesis returns base64-encoded WAV audio using RIFF 24 kHz, 16-bit, mono PCM.
+- Builds a local persisted vector index at `.ally_index/index.json`.
+- Extracts PDF text with Azure Document Intelligence when configured, with local PDF extraction as fallback.
+- Embeds document chunks with Azure OpenAI in safe batches.
+- Answers text questions with retrieved context, citations, and function-call results.
+- Supports a full voice flow: audio question -> transcription -> RAG answer -> synthesized speech.
+- Supports standalone speech-to-text and text-to-speech endpoints.
+- Includes a function-calling tool registry for future database-backed medication questions such as “Did I use my drug yesterday?”
 
 ## Setup
 
@@ -34,50 +32,205 @@ Use the existing virtual environment:
 
 Create `.env` from `.env.example` and fill in your Azure values. `.env` is gitignored.
 
+Important settings:
+
+```text
+AZURE_OPENAI_API_KEY
+AZURE_OPENAI_BASE_URL
+AZURE_OPENAI_DEPLOYMENT_NAME
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME
+AZURE_OPENAI_API_VERSION
+DOCUMENT_INTELLIGENCE_ENDPOINT
+DOCUMENT_INTELLIGENCE_SUBSCRIPTION_KEY
+SPEECH_KEY
+SPEECH_REGION
+SPEECH_VOICE_NAME
+```
+
+Optional settings:
+
+```text
+CHAT_TEMPERATURE
+EMBEDDING_BATCH_SIZE
+EMBEDDING_BATCH_MAX_CHARACTERS
+MEDICATION_DATABASE_URL
+```
+
+Chat completions omit `temperature` by default because some Azure OpenAI models only support the default value. Set `CHAT_TEMPERATURE` only when your deployed model supports it.
+
 ## Run
 
+Start the API:
+
 ```bash
-./.venv/bin/python -m uvicorn main:app --reload
+./.venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8081 --reload
 ```
 
-Health check:
+Open the interactive docs:
 
-```bash
-curl http://127.0.0.1:8000/health
+```text
+http://127.0.0.1:8081/docs
 ```
 
-Build or rebuild the local index:
+OpenAPI JSON:
 
-```bash
-curl -X POST http://127.0.0.1:8000/ingest
+```text
+http://127.0.0.1:8081/openapi.json
 ```
 
-Ask a text question:
+## Endpoint Guide
+
+### `GET /health`
+
+Checks whether the API can see the required configuration and local index.
 
 ```bash
-curl -X POST http://127.0.0.1:8000/ask \
+curl http://127.0.0.1:8081/health
+```
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "azure_openai_configured": true,
+  "document_intelligence_configured": true,
+  "speech_configured": true,
+  "index_exists": true
+}
+```
+
+### `POST /ingest`
+
+Builds or rebuilds `.ally_index/index.json` from the configured PDF folder.
+
+```bash
+curl -X POST http://127.0.0.1:8081/ingest
+```
+
+Example response:
+
+```json
+{
+  "document_count": 5,
+  "page_count": 627,
+  "chunk_count": 1663,
+  "index_path": ".ally_index/index.json"
+}
+```
+
+Embedding calls are batched during ingestion to stay below Azure OpenAI request limits. Tune `EMBEDDING_BATCH_SIZE` and `EMBEDDING_BATCH_MAX_CHARACTERS` in `.env` if your embedding deployment needs smaller requests.
+
+### `POST /ask`
+
+Answers a text question from the indexed health guidance.
+
+```bash
+curl -X POST http://127.0.0.1:8081/ask \
   -H "Content-Type: application/json" \
   -d '{"question":"What are recommended interventions for chronic disease prevention?"}'
 ```
 
-Ask with audio:
+Response fields:
+
+- `question`: the input question.
+- `answer`: concise plain-language answer.
+- `citations`: retrieved source chunks with filename, page, score, and text.
+- `tool_results`: any function-call results, such as medication adherence checks.
+
+### `POST /voice/ask`
+
+Runs the full voice assistant pipeline.
 
 ```bash
-curl -X POST http://127.0.0.1:8000/voice/ask \
+curl -X POST http://127.0.0.1:8081/voice/ask \
   -F "audio=@question.wav"
 ```
 
-The voice endpoint returns the transcript, answer, citations, tool results, and synthesized response audio as base64 WAV data.
+Flow:
 
-## Function Calling
+```text
+audio upload -> Azure Speech transcription -> RAG answer -> Azure Speech synthesis
+```
 
-`app/tools.py` defines the tool registry. The first tool is:
+Response fields include `transcript`, `answer`, `citations`, `tool_results`, `audio_base64`, and `audio_content_type`.
+
+### `POST /speech/transcribe`
+
+Converts an audio file to text only. Use this when you need speech-to-text without asking the RAG system.
+
+```bash
+curl -X POST http://127.0.0.1:8081/speech/transcribe \
+  -F "audio=@question.wav"
+```
+
+Example response:
+
+```json
+{
+  "transcript": "What is diabetes?"
+}
+```
+
+### `POST /speech/synthesize`
+
+Converts text to speech only. Use this when you already have text and only need audio.
+
+```bash
+curl -X POST http://127.0.0.1:8081/speech/synthesize \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Take your medicine after food."}'
+```
+
+Example response:
+
+```json
+{
+  "audio_base64": "<base64 WAV audio>",
+  "audio_content_type": "audio/wav"
+}
+```
+
+Speech synthesis returns base64-encoded WAV audio using RIFF 24 kHz, 16-bit, mono PCM. Decode `audio_base64` on the client to play or save the `.wav` file.
+
+### `GET /tools`
+
+Lists available function-calling tools.
+
+```bash
+curl http://127.0.0.1:8081/tools
+```
+
+The first tool is:
 
 ```text
 get_medication_adherence(date)
 ```
 
-It currently returns a transparent “database not configured” result unless `MEDICATION_DATABASE_URL` is set. Replace the stub handler with a real database adapter when the medication/device event schema is ready.
+It currently returns a transparent “database not configured” result unless `MEDICATION_DATABASE_URL` is set. Replace the stub handler in `app/tools.py` with a real database adapter when the medication/device event schema is ready.
+
+## Audio Notes
+
+- Input audio is passed to Azure Speech from a temporary file.
+- Output audio from `/voice/ask` and `/speech/synthesize` is JSON-safe base64.
+- Output content type is `audio/wav`.
+- Current synthesis format is RIFF 24 kHz, 16-bit, mono PCM.
+- Voice is controlled with `SPEECH_VOICE_NAME`, defaulting to `en-NG-EzinneNeural`.
+
+## Project Structure
+
+```text
+app/api.py              FastAPI app and route definitions
+app/azure_clients.py    Azure OpenAI and Azure Speech wrappers
+app/chunking.py         Text chunk model and chunking logic
+app/config.py           Environment-based settings
+app/document_loaders.py PDF extraction with Document Intelligence or PyPDF
+app/ingestion.py        Ingestion pipeline
+app/models.py           Request and response schemas
+app/rag.py              Retrieval, function calling, and answer orchestration
+app/tools.py            Tool registry and medication adherence stub
+app/vector_index.py     Local JSON vector index
+```
 
 ## Tests
 
@@ -85,3 +238,4 @@ It currently returns a transparent “database not configured” result unless `
 ./.venv/bin/python -m pytest -v
 ./.venv/bin/python -m compileall app main.py
 ```
+

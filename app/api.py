@@ -13,6 +13,9 @@ from app.models import (
     AskRequest,
     HealthResponse,
     IngestResponse,
+    SynthesisRequest,
+    SynthesisResponse,
+    TranscriptionResponse,
     VoiceAnswerResponse,
 )
 from app.rag import RAGService
@@ -27,7 +30,14 @@ def create_app(
     speech_client: AzureSpeechClient | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
-    app = FastAPI(title=settings.app_name)
+    app = FastAPI(
+        title=settings.app_name,
+        description=(
+            "Concise elder-care oriented health Q&A over a local Healthwise vector index, "
+            "with standalone Azure Speech transcription and synthesis endpoints."
+        ),
+        version="0.2.0",
+    )
 
     def get_rag_service() -> RAGService:
         nonlocal rag_service
@@ -61,7 +71,13 @@ def create_app(
             speech_client = AzureSpeechClient(settings)
         return speech_client
 
-    @app.get("/health", response_model=HealthResponse)
+    @app.get(
+        "/health",
+        response_model=HealthResponse,
+        tags=["System"],
+        summary="Check service configuration",
+        description="Returns provider configuration flags and whether the local vector index exists.",
+    )
     def health() -> HealthResponse:
         return HealthResponse(
             status="ok",
@@ -71,11 +87,25 @@ def create_app(
             index_exists=settings.index_path.exists(),
         )
 
-    @app.get("/tools")
+    @app.get(
+        "/tools",
+        tags=["Tools"],
+        summary="List available function-calling tools",
+        description="Shows tool schemas available to the RAG model, including medication adherence.",
+    )
     def tools() -> list[dict]:
         return build_default_registry(settings.medication_database_url).schemas()
 
-    @app.post("/ingest", response_model=IngestResponse)
+    @app.post(
+        "/ingest",
+        response_model=IngestResponse,
+        tags=["RAG"],
+        summary="Build or rebuild the local Healthwise vector index",
+        description=(
+            "Extracts text from the configured PDF folder, chunks it, embeds it with Azure OpenAI, "
+            "and writes the local JSON vector index."
+        ),
+    )
     def ingest() -> IngestResponse:
         try:
             result = get_ingestion_service().ingest(settings.data_dir)
@@ -88,7 +118,16 @@ def create_app(
             index_path=str(result.index_path),
         )
 
-    @app.post("/ask", response_model=AnswerResponse)
+    @app.post(
+        "/ask",
+        response_model=AnswerResponse,
+        tags=["RAG"],
+        summary="Ask a concise text question",
+        description=(
+            "Retrieves relevant Healthwise context and returns a concise 2 to 3 sentence answer "
+            "with citations and any function-call results."
+        ),
+    )
     def ask(request: AskRequest) -> AnswerResponse:
         try:
             return get_rag_service().answer(request.question)
@@ -97,7 +136,16 @@ def create_app(
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @app.post("/voice/ask", response_model=VoiceAnswerResponse)
+    @app.post(
+        "/voice/ask",
+        response_model=VoiceAnswerResponse,
+        tags=["Voice"],
+        summary="Ask with audio and receive spoken answer",
+        description=(
+            "Runs the full voice pipeline: upload audio, transcribe it with Azure Speech, answer "
+            "through RAG, then synthesize the answer to base64 WAV audio."
+        ),
+    )
     async def voice_ask(audio: UploadFile = File(...)) -> VoiceAnswerResponse:
         suffix = Path(audio.filename or "audio.wav").suffix or ".wav"
         with tempfile.NamedTemporaryFile(suffix=suffix) as audio_file:
@@ -122,5 +170,42 @@ def create_app(
             audio_content_type="audio/wav",
         )
 
-    return app
+    @app.post(
+        "/speech/transcribe",
+        response_model=TranscriptionResponse,
+        tags=["Speech"],
+        summary="Convert speech audio to text",
+        description="Uploads an audio file and returns only the Azure Speech transcription text.",
+    )
+    async def transcribe(audio: UploadFile = File(...)) -> TranscriptionResponse:
+        suffix = Path(audio.filename or "audio.wav").suffix or ".wav"
+        with tempfile.NamedTemporaryFile(suffix=suffix) as audio_file:
+            audio_file.write(await audio.read())
+            audio_file.flush()
+            try:
+                transcript = get_speech_client().transcribe_file(Path(audio_file.name))
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return TranscriptionResponse(transcript=transcript)
 
+    @app.post(
+        "/speech/synthesize",
+        response_model=SynthesisResponse,
+        tags=["Speech"],
+        summary="Convert text to speech",
+        description=(
+            "Converts text to speech with Azure Speech and returns base64 WAV audio "
+            "using RIFF 24 kHz, 16-bit, mono PCM."
+        ),
+    )
+    def synthesize(request: SynthesisRequest) -> SynthesisResponse:
+        try:
+            audio_bytes = get_speech_client().synthesize(request.text)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return SynthesisResponse(
+            audio_base64=base64.b64encode(audio_bytes).decode("ascii"),
+            audio_content_type="audio/wav",
+        )
+
+    return app
