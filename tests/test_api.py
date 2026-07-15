@@ -22,7 +22,7 @@ class FakeIngestionService:
             document_count=1,
             page_count=2,
             chunk_count=3,
-            index_path=".ally_index/index.json",
+            index_path="data/index.json",
         )
 
 

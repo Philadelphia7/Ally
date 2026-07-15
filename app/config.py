@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     app_name: str = "Ally Healthwise RAG"
     data_dir: Path = Path("/Users/sam/Documents/Ellipsis-Care/data")
-    index_path: Path = Path(".ally_index/index.json")
+    index_path: Path = Path("data/index.json")
     chunk_size: int = 1200
     chunk_overlap: int = 200
     retrieval_top_k: int = 5
@@ -25,7 +25,11 @@ class Settings(BaseSettings):
         alias="EMBEDDING_BATCH_MAX_CHARACTERS",
     )
 
-    azure_openai_api_key: str | None = Field(default=None, alias="AZURE_OPENAI_API_KEY")
+    azure_openai_api_key: str | None = Field(
+        default=None,
+        alias="AZURE_OPENAI_API_KEY",
+        repr=False,
+    )
     azure_openai_base_url: str | None = Field(default=None, alias="AZURE_OPENAI_BASE_URL")
     azure_openai_deployment_name: str | None = Field(
         default=None,
@@ -48,9 +52,10 @@ class Settings(BaseSettings):
     document_intelligence_subscription_key: str | None = Field(
         default=None,
         alias="DOCUMENT_INTELLIGENCE_SUBSCRIPTION_KEY",
+        repr=False,
     )
 
-    speech_key: str | None = Field(default=None, alias="SPEECH_KEY")
+    speech_key: str | None = Field(default=None, alias="SPEECH_KEY", repr=False)
     speech_region: str | None = Field(default=None, alias="SPEECH_REGION")
     speech_voice_name: str = Field(default="en-NG-EzinneNeural", alias="SPEECH_VOICE_NAME")
 

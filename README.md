@@ -14,7 +14,7 @@ The API is designed for regular, simple use such as elder-care support. RAG answ
 
 ## What It Does
 
-- Builds a local persisted vector index at `.ally_index/index.json`.
+- Builds a local persisted vector index at `data/index.json`.
 - Extracts PDF text with Azure Document Intelligence when configured, with local PDF extraction as fallback.
 - Embeds document chunks with Azure OpenAI in safe batches.
 - Answers text questions with retrieved context, separate citation metadata, and function-call results.
@@ -110,7 +110,7 @@ Example response:
 
 ### `POST /ingest`
 
-Builds or rebuilds `.ally_index/index.json` from the configured PDF folder.
+Builds or rebuilds `data/index.json` from the configured PDF folder.
 
 ```bash
 curl -X POST http://127.0.0.1:8081/ingest
@@ -123,7 +123,7 @@ Example response:
   "document_count": 5,
   "page_count": 627,
   "chunk_count": 1663,
-  "index_path": ".ally_index/index.json"
+  "index_path": "data/index.json"
 }
 ```
 

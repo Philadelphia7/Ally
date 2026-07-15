@@ -7,8 +7,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.ally_index/*
-!.ally_index/index.json
+.ally_index/
 runtime/
 uploads/
 outputs/

@@ -7,7 +7,7 @@ def test_settings_use_healthwise_data_defaults():
     settings = Settings()
 
     assert settings.data_dir == Path("/Users/sam/Documents/Ellipsis-Care/data")
-    assert settings.index_path == Path(".ally_index/index.json")
+    assert settings.index_path == Path("data/index.json")
     assert settings.chunk_size == 1200
     assert settings.chunk_overlap == 200
 
@@ -24,4 +24,3 @@ def test_settings_read_azure_openai_environment(monkeypatch):
     assert str(settings.azure_openai_base_url) == "https://example.openai.azure.com/"
     assert settings.azure_openai_deployment_name == "gpt-4o-mini"
     assert settings.azure_openai_embedding_deployment_name == "text-embedding-3-small"
-
