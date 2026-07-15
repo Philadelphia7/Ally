@@ -73,6 +73,31 @@ def create_app(
         return speech_client
 
     @app.get(
+        "/",
+        tags=["System"],
+        summary="Project overview",
+        description="Returns a compact overview of the Ally Healthwise RAG API and useful links.",
+    )
+    def root() -> dict:
+        return {
+            "name": settings.app_name,
+            "status": "ok",
+            "description": (
+                "Concise health question answering with local RAG, Azure OpenAI, "
+                "Azure Speech, and future-ready medication tools."
+            ),
+            "docs_url": "/docs",
+            "openapi_url": "/openapi.json",
+            "health_url": "/health",
+            "endpoints": {
+                "rag": ["/ingest", "/ask"],
+                "voice": ["/voice/ask"],
+                "speech": ["/speech/transcribe", "/speech/synthesize"],
+                "tools": ["/tools"],
+            },
+        }
+
+    @app.get(
         "/health",
         response_model=HealthResponse,
         tags=["System"],

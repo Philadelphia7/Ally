@@ -34,6 +34,25 @@ class FakeSpeechClient:
         return f"{audio_format}-audio-bytes".encode()
 
 
+def test_root_route_returns_project_details():
+    app = create_app(
+        rag_service=FakeRAGService(),
+        ingestion_service=FakeIngestionService(),
+        speech_client=FakeSpeechClient(),
+    )
+    client = TestClient(app)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["name"] == "Ally Healthwise RAG"
+    assert payload["status"] == "ok"
+    assert payload["docs_url"] == "/docs"
+    assert "/ask" in payload["endpoints"]["rag"]
+    assert "/speech/synthesize" in payload["endpoints"]["speech"]
+
+
 def test_ask_route_returns_answer():
     app = create_app(
         rag_service=FakeRAGService(),

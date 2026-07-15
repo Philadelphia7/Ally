@@ -80,6 +80,14 @@ http://127.0.0.1:8081/openapi.json
 
 ## Endpoint Guide
 
+### `GET /`
+
+Returns a compact project overview with links to docs, health, OpenAPI JSON, and the main endpoint groups. This is useful for Azure Web App root checks.
+
+```bash
+curl http://127.0.0.1:8081/
+```
+
 ### `GET /health`
 
 Checks whether the API can see the required configuration and local index.
