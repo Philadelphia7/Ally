@@ -58,7 +58,39 @@ def test_rag_system_prompt_requests_concise_plain_language(tmp_path):
     assert "plain language" in system_prompt
     assert "Do not give a generic answer" in system_prompt
     assert "accurate and specific" in system_prompt
+    assert "When retrieved context is weak" in system_prompt
+    assert "cautious general health guidance" in system_prompt
     assert "Do not include source names, page numbers, citations" in system_prompt
+
+
+def test_rag_prompt_allows_cautious_general_guidance_when_context_is_weak(tmp_path):
+    index = LocalVectorIndex(tmp_path / "index.json")
+    index.add(TextChunk("guide.pdf:1:0", "guide.pdf", 1, "Asthma and COPD care."), [1.0, 0.0])
+    index.save()
+    chat = FakeChatClient(
+        [
+            {
+                "content": (
+                    "The documents you gave me don’t cover malaria. "
+                    "If you have fever, chills, cough, or sneezing, arrange a malaria test at a clinic and rest while you wait. "
+                    "Seek urgent care if you have trouble breathing, confusion, fainting, repeated vomiting, or a very high fever."
+                ),
+                "tool_calls": [],
+            }
+        ]
+    )
+    service = RAGService(
+        index=index,
+        embedder=FakeEmbedder(),
+        chat_client=chat,
+        tools=build_default_registry(None),
+    )
+
+    answer = service.answer("What can I do if I have malaria symptoms?")
+
+    assert "documents you gave me" not in answer.answer
+    assert answer.answer.startswith("I do not have enough information in the local health records.")
+    assert "arrange a malaria test at a clinic" in answer.answer
 
 
 def test_rag_cleans_citations_and_audio_unfriendly_abbreviations(tmp_path):
@@ -101,6 +133,19 @@ def test_clean_spoken_answer_removes_markdown_source_codes_and_page_references()
     assert answer == (
         "Use primary care screening and support self-care. "
         "This lowers risk for example through better diet."
+    )
+
+
+def test_clean_spoken_answer_softens_document_gap_phrasing():
+    answer = clean_spoken_answer(
+        "The documents you gave me don’t cover malaria—they are about asthma and COPD—"
+        "so I can’t give malaria-specific advice from this material. "
+        "If you think you may have malaria, contact a clinic for testing."
+    )
+
+    assert answer == (
+        "I do not have enough information in the local health records. "
+        "If you think you may have malaria, contact a clinic for testing."
     )
 
 

@@ -10,7 +10,7 @@ This repo includes a FastAPI service for concise health question answering over 
 /Users/sam/Documents/Ellipsis-Care/data
 ```
 
-The API is designed for regular, simple use such as elder-care support. RAG answers are prompted to use plain language and stay around 2 to 3 short sentences unless the user asks for more detail. The `answer` text avoids source names, page references, markdown, bullet points, and hard-to-say abbreviations so it works well for speech playback.
+The API is designed for regular, simple use such as elder-care support. RAG answers are prompted to use plain language and stay around 2 to 3 short sentences unless the user asks for more detail. The `answer` text avoids source names, page references, markdown, bullet points, and hard-to-say abbreviations so it works well for speech playback. When the local documents do not directly cover a question, the assistant should say the local records are limited and then give cautious general health guidance without sounding overconfident.
 
 ## What It Does
 
@@ -165,7 +165,7 @@ audio upload -> Azure Speech transcription -> RAG answer -> Azure Speech synthes
 
 Set `audio_format` to `wav` or `mp3`. It defaults to `wav`.
 
-Response fields include `transcript`, `answer`, `citations`, `tool_results`, `audio_base64`, `audio_content_type`, and `audio_format`.
+Response fields include `transcript`, `answer`, `citations`, `tool_results`, `audio_base64`, `audio_content_type`, and `audio_format`. The audio response is returned as `audio_base64`; Swagger will show it as a long JSON string rather than an audio player. Client apps should decode it before playback.
 
 ### `POST /speech/transcribe`
 

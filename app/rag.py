@@ -97,10 +97,13 @@ class RAGService:
             "are needed for precision. Use words that sound natural when spoken out loud. "
             "Avoid abbreviations when a simple phrase works. Do not include source names, "
             "page numbers, citations, markdown, or bullet points in the answer text; citations "
-            "are returned separately by the API. Use only the retrieved context and tool results. "
-            "If evidence is insufficient, say so. Do not give emergency medical instructions "
-            "beyond advising the user to contact a qualified clinician or local emergency "
-            "services for urgent symptoms."
+            "are returned separately by the API. Use retrieved context and tool results when "
+            "they are relevant. When retrieved context is weak or not directly relevant, say "
+            "that the local health records have limited information, then provide cautious "
+            "general health guidance without pretending it came from the records. Do not sound "
+            "certain when evidence is limited. Do not give emergency medical instructions beyond "
+            "advising the user to contact a qualified clinician or local emergency services for "
+            "urgent symptoms."
         )
         user_prompt = f"Question: {question}\n\nRetrieved context:\n{context}"
         return [
@@ -117,6 +120,7 @@ def clean_spoken_answer(answer: str) -> str:
     cleaned = cleaned.replace("i.e.", "that is")
     cleaned = cleaned.replace("&", "and")
     cleaned = cleaned.replace("_", " ")
+    cleaned = _soften_document_gap_phrasing(cleaned)
     cleaned = re.sub(r"\((for example, [^)]*)\)", r", \1", cleaned, flags=re.IGNORECASE)
     cleaned = _remove_source_citation_parentheticals(cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned)
@@ -132,3 +136,22 @@ def _remove_source_citation_parentheticals(text: str) -> str:
         return match.group(0)
 
     return re.sub(r"\(([^)]*)\)", replace, text)
+
+
+def _soften_document_gap_phrasing(text: str) -> str:
+    gap_patterns = [
+        r"(?is)^\s*the documents you gave me (?:do not|don't|don’t) cover .*?from this material\.\s*",
+        r"(?is)^\s*the documents (?:do not|don't|don’t) cover .*?from this material\.\s*",
+        r"(?is)^\s*the local (?:documents|records) (?:do not|don't|don’t) cover .*?from this material\.\s*",
+        r"(?is)^\s*the documents you gave me (?:do not|don't|don’t) cover [^.]*\.\s*",
+    ]
+    for pattern in gap_patterns:
+        updated = re.sub(
+            pattern,
+            "I do not have enough information in the local health records. ",
+            text,
+            count=1,
+        )
+        if updated != text:
+            return updated
+    return text
