@@ -1,8 +1,11 @@
 from types import SimpleNamespace
 
+import pytest
+
 from app.azure_clients import (
     AzureOpenAIClient,
     AzureSpeechClient,
+    SpeechTranscriptionError,
     build_speech_config,
     content_type_for_audio_format,
     iter_embedding_batches,
@@ -160,3 +163,25 @@ def test_speech_recognition_content_type_normalizes_opus_uploads():
         speech_recognition_content_type("audio/ogg", "question_who.opus")
         == "audio/ogg; codecs=opus"
     )
+
+
+def test_transcribe_audio_rejects_m4a_uploads_before_calling_speech_api():
+    http_client = FakeHttpClient()
+    client = object.__new__(AzureSpeechClient)
+    client.settings = SimpleNamespace(
+        speech_key="key",
+        speech_region="eastus",
+        speech_recognition_language="en-NG",
+    )
+    client.http_client = http_client
+
+    with pytest.raises(SpeechTranscriptionError) as exc:
+        client.transcribe_audio(
+            b"m4a-bytes",
+            content_type="audio/mp4",
+            filename="test rec 1.m4a",
+        )
+
+    assert "M4A/MP4 audio is not supported" in str(exc.value)
+    assert "WAV" in str(exc.value)
+    assert http_client.calls == []

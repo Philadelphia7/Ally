@@ -165,6 +165,8 @@ audio upload -> Azure Speech transcription -> RAG answer -> Azure Speech synthes
 
 Set `audio_format` to `wav` or `mp3`. It defaults to `wav`.
 
+Upload audio as WAV, MP3, Ogg Opus, or WebM Opus. Do not upload `.m4a` or MP4 audio; those files are rejected with a clear message because the speech endpoint is optimized for short speech formats Azure can transcribe reliably.
+
 Response fields include `transcript`, `answer`, `citations`, `tool_results`, `audio_base64`, `audio_content_type`, and `audio_format`. The audio response is returned as `audio_base64`; Swagger will show it as a long JSON string rather than an audio player. Client apps should decode it before playback.
 
 ### `POST /speech/transcribe`
@@ -176,7 +178,7 @@ curl -X POST http://127.0.0.1:8081/speech/transcribe \
   -F "audio=@question.wav"
 ```
 
-The transcription endpoint accepts common speech uploads such as WAV, MP3, WebM Opus, and Ogg Opus files. For files like `question_who.opus`, the API sends the audio to Azure Speech with an Opus-aware content type.
+The transcription endpoint accepts common speech uploads such as WAV, MP3, WebM Opus, and Ogg Opus files. For files like `question_who.opus`, the API sends the audio to Azure Speech with an Opus-aware content type. `.m4a` and MP4 audio uploads are not supported; convert them to WAV or MP3 first.
 
 Example response:
 
@@ -228,6 +230,7 @@ It currently returns a transparent “database not configured” result unless `
 
 - Input audio is read from the upload and sent directly to Azure Speech for transcription.
 - Speech-to-text uses Azure Speech REST so Ogg Opus uploads from browsers and messaging apps can be handled without the SDK WAV header error.
+- Supported input formats are WAV, MP3, Ogg Opus, and WebM Opus. M4A/MP4 recordings should be converted before upload.
 - Output audio from `/voice/ask` and `/speech/synthesize` is JSON-safe base64.
 - Supported output formats are `wav` and `mp3`.
 - `wav` returns content type `audio/wav` and uses RIFF 24 kHz, 16-bit, mono PCM.

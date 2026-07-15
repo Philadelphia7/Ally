@@ -11,6 +11,8 @@ from app.config import Settings
 
 AudioFormat = Literal["wav", "mp3"]
 
+SUPPORTED_SPEECH_INPUT_FORMATS = "WAV, MP3, OGG Opus, or WebM Opus"
+
 
 class AzureOpenAIClient:
     def __init__(self, settings: Settings):
@@ -118,7 +120,11 @@ class AzureSpeechClient:
             )
         transcript = payload.get("DisplayText", "").strip()
         if not transcript:
-            raise SpeechTranscriptionError("Speech was recognized, but no transcript was returned.")
+            raise SpeechTranscriptionError(
+                "Speech was recognized, but no transcript was returned. "
+                "Please try a clearer recording in "
+                f"{SUPPORTED_SPEECH_INPUT_FORMATS}; M4A/MP4 recordings are not supported."
+            )
         return transcript
 
     def synthesize(self, text: str, audio_format: AudioFormat = "wav") -> bytes:
@@ -157,6 +163,11 @@ def speech_recognition_content_type(
     normalized = (content_type or "").split(";")[0].strip().lower()
     suffix = Path(filename or "").suffix.lower()
 
+    if suffix in {".m4a", ".mp4"} or normalized in {"audio/mp4", "audio/x-m4a", "video/mp4"}:
+        raise SpeechTranscriptionError(
+            "M4A/MP4 audio is not supported by this speech endpoint. "
+            f"Please upload {SUPPORTED_SPEECH_INPUT_FORMATS}."
+        )
     if suffix in {".opus", ".ogg"} or normalized in {"audio/ogg", "audio/opus"}:
         return "audio/ogg; codecs=opus"
     if suffix == ".webm" or normalized == "audio/webm":
