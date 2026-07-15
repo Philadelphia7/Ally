@@ -27,7 +27,17 @@ class FakeIngestionService:
 
 
 class FakeSpeechClient:
-    def transcribe_file(self, audio_path):
+    def __init__(self):
+        self.transcriptions = []
+
+    def transcribe_audio(self, audio_bytes, content_type=None, filename=None):
+        self.transcriptions.append(
+            {
+                "audio_bytes": audio_bytes,
+                "content_type": content_type,
+                "filename": filename,
+            }
+        )
         return "What is diabetes?"
 
     def synthesize(self, text, audio_format="wav"):
@@ -82,10 +92,11 @@ def test_ingest_route_returns_counts():
 
 
 def test_voice_route_returns_transcript_and_audio_metadata():
+    speech_client = FakeSpeechClient()
     app = create_app(
         rag_service=FakeRAGService(),
         ingestion_service=FakeIngestionService(),
-        speech_client=FakeSpeechClient(),
+        speech_client=speech_client,
     )
     client = TestClient(app)
 
@@ -98,6 +109,11 @@ def test_voice_route_returns_transcript_and_audio_metadata():
     payload = response.json()
     assert payload["transcript"] == "What is diabetes?"
     assert payload["audio_content_type"] == "audio/wav"
+    assert speech_client.transcriptions[0] == {
+        "audio_bytes": b"audio",
+        "content_type": "audio/wav",
+        "filename": "question.wav",
+    }
 
 
 def test_voice_route_can_return_mp3_audio():
@@ -121,20 +137,26 @@ def test_voice_route_can_return_mp3_audio():
 
 
 def test_speech_transcribe_route_returns_transcript():
+    speech_client = FakeSpeechClient()
     app = create_app(
         rag_service=FakeRAGService(),
         ingestion_service=FakeIngestionService(),
-        speech_client=FakeSpeechClient(),
+        speech_client=speech_client,
     )
     client = TestClient(app)
 
     response = client.post(
         "/speech/transcribe",
-        files={"audio": ("question.wav", b"audio", "audio/wav")},
+        files={"audio": ("question_who.opus", b"opus-audio", "audio/ogg")},
     )
 
     assert response.status_code == 200
     assert response.json() == {"transcript": "What is diabetes?"}
+    assert speech_client.transcriptions[0] == {
+        "audio_bytes": b"opus-audio",
+        "content_type": "audio/ogg",
+        "filename": "question_who.opus",
+    }
 
 
 def test_speech_synthesize_route_returns_audio_metadata():

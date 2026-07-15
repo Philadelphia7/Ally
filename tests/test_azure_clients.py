@@ -2,9 +2,11 @@ from types import SimpleNamespace
 
 from app.azure_clients import (
     AzureOpenAIClient,
+    AzureSpeechClient,
     build_speech_config,
     content_type_for_audio_format,
     iter_embedding_batches,
+    speech_recognition_content_type,
 )
 
 
@@ -101,3 +103,60 @@ def test_build_speech_config_supports_mp3_output_format():
 
     assert speech_config.speech_synthesis_output_format_string == "audio-24khz-48kbitrate-mono-mp3"
     assert content_type_for_audio_format("mp3") == "audio/mpeg"
+
+
+class FakeSpeechRestResponse:
+    status_code = 200
+    text = '{"RecognitionStatus":"Success","DisplayText":"What is diabetes?"}'
+
+    def json(self):
+        return {"RecognitionStatus": "Success", "DisplayText": "What is diabetes?"}
+
+
+class FakeHttpClient:
+    def __init__(self):
+        self.calls = []
+
+    def post(self, url, params, headers, data, timeout):
+        self.calls.append(
+            {
+                "url": url,
+                "params": params,
+                "headers": headers,
+                "data": data,
+                "timeout": timeout,
+            }
+        )
+        return FakeSpeechRestResponse()
+
+
+def test_transcribe_audio_uses_rest_with_ogg_opus_content_type():
+    http_client = FakeHttpClient()
+    client = object.__new__(AzureSpeechClient)
+    client.settings = SimpleNamespace(
+        speech_key="key",
+        speech_region="eastus",
+        speech_recognition_language="en-NG",
+    )
+    client.http_client = http_client
+
+    transcript = client.transcribe_audio(
+        b"opus-bytes",
+        content_type="audio/ogg",
+        filename="question_who.opus",
+    )
+
+    assert transcript == "What is diabetes?"
+    call = http_client.calls[0]
+    assert call["url"] == "https://eastus.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1"
+    assert call["params"] == {"language": "en-NG"}
+    assert call["headers"]["Content-Type"] == "audio/ogg; codecs=opus"
+    assert call["headers"]["Ocp-Apim-Subscription-Key"] == "key"
+    assert call["data"] == b"opus-bytes"
+
+
+def test_speech_recognition_content_type_normalizes_opus_uploads():
+    assert (
+        speech_recognition_content_type("audio/ogg", "question_who.opus")
+        == "audio/ogg; codecs=opus"
+    )

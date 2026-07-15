@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     speech_key: str | None = Field(default=None, alias="SPEECH_KEY", repr=False)
     speech_region: str | None = Field(default=None, alias="SPEECH_REGION")
     speech_voice_name: str = Field(default="en-NG-EzinneNeural", alias="SPEECH_VOICE_NAME")
+    speech_recognition_language: str = Field(
+        default="en-NG",
+        alias="SPEECH_RECOGNITION_LANGUAGE",
+    )
 
     medication_database_url: str | None = Field(default=None, alias="MEDICATION_DATABASE_URL")
 

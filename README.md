@@ -45,6 +45,7 @@ DOCUMENT_INTELLIGENCE_SUBSCRIPTION_KEY
 SPEECH_KEY
 SPEECH_REGION
 SPEECH_VOICE_NAME
+SPEECH_RECOGNITION_LANGUAGE
 ```
 
 Optional settings:
@@ -175,6 +176,8 @@ curl -X POST http://127.0.0.1:8081/speech/transcribe \
   -F "audio=@question.wav"
 ```
 
+The transcription endpoint accepts common speech uploads such as WAV, MP3, WebM Opus, and Ogg Opus files. For files like `question_who.opus`, the API sends the audio to Azure Speech with an Opus-aware content type.
+
 Example response:
 
 ```json
@@ -223,12 +226,14 @@ It currently returns a transparent “database not configured” result unless `
 
 ## Audio Notes
 
-- Input audio is passed to Azure Speech from a temporary file.
+- Input audio is read from the upload and sent directly to Azure Speech for transcription.
+- Speech-to-text uses Azure Speech REST so Ogg Opus uploads from browsers and messaging apps can be handled without the SDK WAV header error.
 - Output audio from `/voice/ask` and `/speech/synthesize` is JSON-safe base64.
 - Supported output formats are `wav` and `mp3`.
 - `wav` returns content type `audio/wav` and uses RIFF 24 kHz, 16-bit, mono PCM.
 - `mp3` returns content type `audio/mpeg` and uses 24 kHz, 48 kilobit mono MPEG audio.
 - Voice is controlled with `SPEECH_VOICE_NAME`, defaulting to `en-NG-EzinneNeural`.
+- Recognition language is controlled with `SPEECH_RECOGNITION_LANGUAGE`, defaulting to `en-NG`.
 
 ## Project Structure
 

@@ -1,10 +1,13 @@
 import base64
-import tempfile
-from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
-from app.azure_clients import AzureOpenAIClient, AzureSpeechClient, content_type_for_audio_format
+from app.azure_clients import (
+    AzureOpenAIClient,
+    AzureSpeechClient,
+    SpeechTranscriptionError,
+    content_type_for_audio_format,
+)
 from app.config import Settings, get_settings
 from app.document_loaders import DocumentLoader
 from app.ingestion import IngestionService
@@ -176,21 +179,23 @@ def create_app(
         audio: UploadFile = File(...),
         audio_format: AudioFormat = Form(default="wav"),
     ) -> VoiceAnswerResponse:
-        suffix = Path(audio.filename or "audio.wav").suffix or ".wav"
-        with tempfile.NamedTemporaryFile(suffix=suffix) as audio_file:
-            audio_file.write(await audio.read())
-            audio_file.flush()
-            try:
-                transcript = get_speech_client().transcribe_file(Path(audio_file.name))
-                answer = get_rag_service().answer(transcript)
-                audio_bytes = get_speech_client().synthesize(
-                    answer.answer,
-                    audio_format=audio_format,
-                )
-            except FileNotFoundError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
-            except Exception as exc:
-                raise HTTPException(status_code=500, detail=str(exc)) from exc
+        try:
+            transcript = get_speech_client().transcribe_audio(
+                await audio.read(),
+                content_type=audio.content_type,
+                filename=audio.filename,
+            )
+            answer = get_rag_service().answer(transcript)
+            audio_bytes = get_speech_client().synthesize(
+                answer.answer,
+                audio_format=audio_format,
+            )
+        except SpeechTranscriptionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
         return VoiceAnswerResponse(
             question=answer.question,
@@ -211,14 +216,16 @@ def create_app(
         description="Uploads an audio file and returns only the Azure Speech transcription text.",
     )
     async def transcribe(audio: UploadFile = File(...)) -> TranscriptionResponse:
-        suffix = Path(audio.filename or "audio.wav").suffix or ".wav"
-        with tempfile.NamedTemporaryFile(suffix=suffix) as audio_file:
-            audio_file.write(await audio.read())
-            audio_file.flush()
-            try:
-                transcript = get_speech_client().transcribe_file(Path(audio_file.name))
-            except Exception as exc:
-                raise HTTPException(status_code=500, detail=str(exc)) from exc
+        try:
+            transcript = get_speech_client().transcribe_audio(
+                await audio.read(),
+                content_type=audio.content_type,
+                filename=audio.filename,
+            )
+        except SpeechTranscriptionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
         return TranscriptionResponse(transcript=transcript)
 
     @app.post(

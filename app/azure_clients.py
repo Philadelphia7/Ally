@@ -1,8 +1,10 @@
 import json
+import mimetypes
 from pathlib import Path
 from typing import Any, Literal
 
 import azure.cognitiveservices.speech as speechsdk
+import requests
 from openai import AzureOpenAI
 
 from app.config import Settings
@@ -71,18 +73,53 @@ class AzureSpeechClient:
         if not settings.speech_configured:
             raise ValueError("Azure Speech is not configured")
         self.settings = settings
+        self.http_client = requests
 
     def transcribe_file(self, audio_path: Path) -> str:
-        speech_config = build_speech_config(self.settings)
-        audio_config = speechsdk.audio.AudioConfig(filename=str(audio_path))
-        recognizer = speechsdk.SpeechRecognizer(
-            speech_config=speech_config,
-            audio_config=audio_config,
+        content_type = mimetypes.guess_type(audio_path.name)[0]
+        return self.transcribe_audio(
+            audio_path.read_bytes(),
+            content_type=content_type,
+            filename=audio_path.name,
         )
-        result = recognizer.recognize_once_async().get()
-        if result.reason != speechsdk.ResultReason.RecognizedSpeech:
-            raise RuntimeError(f"Speech transcription failed: {result.reason}")
-        return result.text
+
+    def transcribe_audio(
+        self,
+        audio_bytes: bytes,
+        content_type: str | None = None,
+        filename: str | None = None,
+    ) -> str:
+        if not audio_bytes:
+            raise SpeechTranscriptionError("Uploaded audio is empty.")
+
+        recognition_content_type = speech_recognition_content_type(content_type, filename)
+        response = self.http_client.post(
+            _speech_to_text_url(self.settings.speech_region),
+            params={"language": self.settings.speech_recognition_language},
+            headers={
+                "Ocp-Apim-Subscription-Key": self.settings.speech_key,
+                "Content-Type": recognition_content_type,
+                "Accept": "application/json",
+            },
+            data=audio_bytes,
+            timeout=60,
+        )
+        if response.status_code >= 400:
+            raise SpeechTranscriptionError(
+                f"Azure Speech transcription failed with status {response.status_code}: "
+                f"{response.text[:500]}"
+            )
+
+        payload = response.json()
+        status = payload.get("RecognitionStatus")
+        if status != "Success":
+            raise SpeechTranscriptionError(
+                f"Speech was not recognized clearly. Recognition status: {status or 'unknown'}."
+            )
+        transcript = payload.get("DisplayText", "").strip()
+        if not transcript:
+            raise SpeechTranscriptionError("Speech was recognized, but no transcript was returned.")
+        return transcript
 
     def synthesize(self, text: str, audio_format: AudioFormat = "wav") -> bytes:
         speech_config = build_speech_config(self.settings, audio_format=audio_format)
@@ -107,6 +144,37 @@ def build_speech_config(
     speech_config.speech_synthesis_voice_name = settings.speech_voice_name
     speech_config.set_speech_synthesis_output_format(_speech_output_format(audio_format))
     return speech_config
+
+
+class SpeechTranscriptionError(RuntimeError):
+    pass
+
+
+def speech_recognition_content_type(
+    content_type: str | None,
+    filename: str | None = None,
+) -> str:
+    normalized = (content_type or "").split(";")[0].strip().lower()
+    suffix = Path(filename or "").suffix.lower()
+
+    if suffix in {".opus", ".ogg"} or normalized in {"audio/ogg", "audio/opus"}:
+        return "audio/ogg; codecs=opus"
+    if suffix == ".webm" or normalized == "audio/webm":
+        return "audio/webm; codecs=opus"
+    if suffix == ".mp3" or normalized in {"audio/mpeg", "audio/mp3"}:
+        return "audio/mpeg"
+    if suffix == ".wav" or normalized in {"audio/wav", "audio/x-wav", "audio/wave"}:
+        return "audio/wav"
+    if normalized:
+        return normalized
+    return "audio/wav"
+
+
+def _speech_to_text_url(region: str) -> str:
+    return (
+        f"https://{region}.stt.speech.microsoft.com/"
+        "speech/recognition/conversation/cognitiveservices/v1"
+    )
 
 
 def content_type_for_audio_format(audio_format: AudioFormat) -> str:
