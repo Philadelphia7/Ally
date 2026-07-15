@@ -185,3 +185,30 @@ def test_transcribe_audio_rejects_m4a_uploads_before_calling_speech_api():
     assert "M4A/MP4 audio is not supported" in str(exc.value)
     assert "WAV" in str(exc.value)
     assert http_client.calls == []
+
+
+def test_transcribe_audio_converts_mp3_to_wav_before_calling_speech_api(monkeypatch):
+    http_client = FakeHttpClient()
+    client = object.__new__(AzureSpeechClient)
+    client.settings = SimpleNamespace(
+        speech_key="key",
+        speech_region="eastus",
+        speech_recognition_language="en-NG",
+    )
+    client.http_client = http_client
+    monkeypatch.setattr(
+        "app.azure_clients.decode_mp3_to_wav",
+        lambda audio_bytes: b"wav-bytes",
+        raising=False,
+    )
+
+    transcript = client.transcribe_audio(
+        b"mp3-bytes",
+        content_type="audio/mpeg",
+        filename="question.mp3",
+    )
+
+    assert transcript == "What is diabetes?"
+    call = http_client.calls[0]
+    assert call["headers"]["Content-Type"] == "audio/wav"
+    assert call["data"] == b"wav-bytes"

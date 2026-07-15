@@ -1,9 +1,12 @@
+import io
 import json
 import mimetypes
+import wave
 from pathlib import Path
 from typing import Any, Literal
 
 import azure.cognitiveservices.speech as speechsdk
+import miniaudio
 import requests
 from openai import AzureOpenAI
 
@@ -94,7 +97,11 @@ class AzureSpeechClient:
         if not audio_bytes:
             raise SpeechTranscriptionError("Uploaded audio is empty.")
 
-        recognition_content_type = speech_recognition_content_type(content_type, filename)
+        rest_audio_bytes, recognition_content_type = prepare_speech_audio_for_rest(
+            audio_bytes,
+            content_type=content_type,
+            filename=filename,
+        )
         response = self.http_client.post(
             _speech_to_text_url(self.settings.speech_region),
             params={"language": self.settings.speech_recognition_language},
@@ -103,7 +110,7 @@ class AzureSpeechClient:
                 "Content-Type": recognition_content_type,
                 "Accept": "application/json",
             },
-            data=audio_bytes,
+            data=rest_audio_bytes,
             timeout=60,
         )
         if response.status_code >= 400:
@@ -179,6 +186,39 @@ def speech_recognition_content_type(
     if normalized:
         return normalized
     return "audio/wav"
+
+
+def prepare_speech_audio_for_rest(
+    audio_bytes: bytes,
+    content_type: str | None,
+    filename: str | None = None,
+) -> tuple[bytes, str]:
+    recognition_content_type = speech_recognition_content_type(content_type, filename)
+    if recognition_content_type == "audio/mpeg":
+        return decode_mp3_to_wav(audio_bytes), "audio/wav"
+    return audio_bytes, recognition_content_type
+
+
+def decode_mp3_to_wav(audio_bytes: bytes) -> bytes:
+    try:
+        decoded = miniaudio.decode(
+            audio_bytes,
+            nchannels=1,
+            sample_rate=16000,
+            output_format=miniaudio.SampleFormat.SIGNED16,
+        )
+    except Exception as exc:
+        raise SpeechTranscriptionError(
+            "Could not decode the MP3 audio. Please upload a clear WAV, MP3, OGG Opus, or WebM Opus recording."
+        ) from exc
+
+    wav_buffer = io.BytesIO()
+    with wave.open(wav_buffer, "wb") as wav_file:
+        wav_file.setnchannels(decoded.nchannels)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(decoded.sample_rate)
+        wav_file.writeframes(decoded.samples)
+    return wav_buffer.getvalue()
 
 
 def _speech_to_text_url(region: str) -> str:

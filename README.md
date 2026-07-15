@@ -191,7 +191,7 @@ curl -X POST http://127.0.0.1:8081/speech/transcribe \
   -F "audio=@question.wav"
 ```
 
-The transcription endpoint accepts common speech uploads such as WAV, MP3, WebM Opus, and Ogg Opus files. For files like `question_who.opus`, the API sends the audio to Azure Speech with an Opus-aware content type. `.m4a` and MP4 audio uploads are not supported; convert them to WAV or MP3 first.
+The transcription endpoint accepts common speech uploads such as WAV, MP3, WebM Opus, and Ogg Opus files. MP3 uploads are normalized to a speech-friendly WAV stream before transcription. For files like `question_who.opus`, the API sends the audio to Azure Speech with an Opus-aware content type. `.m4a` and MP4 audio uploads are not supported; convert them to WAV or MP3 first.
 
 Example response:
 
@@ -256,6 +256,7 @@ It currently returns a transparent “database not configured” result unless `
 
 - Input audio is read from the upload and sent directly to Azure Speech for transcription.
 - Speech-to-text uses Azure Speech REST so Ogg Opus uploads from browsers and messaging apps can be handled without the SDK WAV header error.
+- MP3 input is decoded in-process and sent to Azure Speech as 16 kHz mono WAV for more reliable short-audio transcription.
 - Supported input formats are WAV, MP3, Ogg Opus, and WebM Opus. M4A/MP4 recordings should be converted before upload.
 - Output audio from `/voice/ask` and `/speech/synthesize` is JSON-safe base64.
 - Output audio from `/voice/ask/file` and `/speech/synthesize/file` is returned as direct downloadable audio bytes.
