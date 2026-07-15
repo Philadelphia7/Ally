@@ -1,6 +1,6 @@
 import base64
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 
 from app.azure_clients import (
     AzureOpenAIClient,
@@ -75,6 +75,21 @@ def create_app(
             speech_client = AzureSpeechClient(settings)
         return speech_client
 
+    def audio_file_response(
+        audio_bytes: bytes,
+        audio_format: AudioFormat,
+        filename_prefix: str,
+    ) -> Response:
+        return Response(
+            content=audio_bytes,
+            media_type=content_type_for_audio_format(audio_format),
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="{filename_prefix}.{audio_format}"'
+                ),
+            },
+        )
+
     @app.get(
         "/",
         tags=["System"],
@@ -94,8 +109,12 @@ def create_app(
             "health_url": "/health",
             "endpoints": {
                 "rag": ["/ingest", "/ask"],
-                "voice": ["/voice/ask"],
-                "speech": ["/speech/transcribe", "/speech/synthesize"],
+                "voice": ["/voice/ask", "/voice/ask/file"],
+                "speech": [
+                    "/speech/transcribe",
+                    "/speech/synthesize",
+                    "/speech/synthesize/file",
+                ],
                 "tools": ["/tools"],
             },
         }
@@ -209,6 +228,49 @@ def create_app(
         )
 
     @app.post(
+        "/voice/ask/file",
+        tags=["Voice"],
+        summary="Ask with audio and download spoken answer",
+        description=(
+            "Runs the full voice pipeline and returns only the synthesized audio file. "
+            "Use this endpoint for quick playback or downloads from Swagger and curl."
+        ),
+        responses={
+            200: {
+                "description": "Downloadable spoken answer audio.",
+                "content": {"audio/wav": {}, "audio/mpeg": {}},
+            }
+        },
+    )
+    async def voice_ask_file(
+        audio: UploadFile = File(...),
+        audio_format: AudioFormat = Form(default="wav"),
+    ) -> Response:
+        try:
+            transcript = get_speech_client().transcribe_audio(
+                await audio.read(),
+                content_type=audio.content_type,
+                filename=audio.filename,
+            )
+            answer = get_rag_service().answer(transcript)
+            audio_bytes = get_speech_client().synthesize(
+                answer.answer,
+                audio_format=audio_format,
+            )
+        except SpeechTranscriptionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        return audio_file_response(
+            audio_bytes,
+            audio_format=audio_format,
+            filename_prefix="ally-voice-answer",
+        )
+
+    @app.post(
         "/speech/transcribe",
         response_model=TranscriptionResponse,
         tags=["Speech"],
@@ -249,6 +311,34 @@ def create_app(
             audio_base64=base64.b64encode(audio_bytes).decode("ascii"),
             audio_content_type=content_type_for_audio_format(request.audio_format),
             audio_format=request.audio_format,
+        )
+
+    @app.post(
+        "/speech/synthesize/file",
+        tags=["Speech"],
+        summary="Convert text to downloadable speech audio",
+        description=(
+            "Converts text to speech and returns raw WAV or MP3 bytes as a downloadable file."
+        ),
+        responses={
+            200: {
+                "description": "Downloadable synthesized speech audio.",
+                "content": {"audio/wav": {}, "audio/mpeg": {}},
+            }
+        },
+    )
+    def synthesize_file(request: SynthesisRequest) -> Response:
+        try:
+            audio_bytes = get_speech_client().synthesize(
+                request.text,
+                audio_format=request.audio_format,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return audio_file_response(
+            audio_bytes,
+            audio_format=request.audio_format,
+            filename_prefix="ally-speech",
         )
 
     return app

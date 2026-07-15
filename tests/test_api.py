@@ -136,6 +136,28 @@ def test_voice_route_can_return_mp3_audio():
     assert payload["audio_format"] == "mp3"
 
 
+def test_voice_file_route_returns_downloadable_mp3_audio():
+    speech_client = FakeSpeechClient()
+    app = create_app(
+        rag_service=FakeRAGService(),
+        ingestion_service=FakeIngestionService(),
+        speech_client=speech_client,
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/voice/ask/file",
+        data={"audio_format": "mp3"},
+        files={"audio": ("question.wav", b"audio", "audio/wav")},
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"mp3-audio-bytes"
+    assert response.headers["content-type"] == "audio/mpeg"
+    assert response.headers["content-disposition"] == 'attachment; filename="ally-voice-answer.mp3"'
+    assert speech_client.transcriptions[0]["filename"] == "question.wav"
+
+
 def test_speech_transcribe_route_returns_transcript():
     speech_client = FakeSpeechClient()
     app = create_app(
@@ -197,3 +219,22 @@ def test_speech_synthesize_route_can_return_mp3_audio():
     assert payload["audio_base64"] == "bXAzLWF1ZGlvLWJ5dGVz"
     assert payload["audio_content_type"] == "audio/mpeg"
     assert payload["audio_format"] == "mp3"
+
+
+def test_speech_synthesize_file_route_returns_downloadable_wav_audio():
+    app = create_app(
+        rag_service=FakeRAGService(),
+        ingestion_service=FakeIngestionService(),
+        speech_client=FakeSpeechClient(),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/speech/synthesize/file",
+        json={"text": "Take your medicine after food.", "audio_format": "wav"},
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"wav-audio-bytes"
+    assert response.headers["content-type"] == "audio/wav"
+    assert response.headers["content-disposition"] == 'attachment; filename="ally-speech.wav"'

@@ -169,6 +169,19 @@ Upload audio as WAV, MP3, Ogg Opus, or WebM Opus. Do not upload `.m4a` or MP4 au
 
 Response fields include `transcript`, `answer`, `citations`, `tool_results`, `audio_base64`, `audio_content_type`, and `audio_format`. The audio response is returned as `audio_base64`; Swagger will show it as a long JSON string rather than an audio player. Client apps should decode it before playback.
 
+### `POST /voice/ask/file`
+
+Runs the same voice assistant pipeline as `/voice/ask`, but returns only the spoken answer as a downloadable audio file.
+
+```bash
+curl -X POST http://127.0.0.1:8081/voice/ask/file \
+  -F "audio=@question.wav" \
+  -F "audio_format=mp3" \
+  --output ally-voice-answer.mp3
+```
+
+Use this endpoint when testing audio playback directly. The response body is raw audio bytes, not JSON.
+
 ### `POST /speech/transcribe`
 
 Converts an audio file to text only. Use this when you need speech-to-text without asking the RAG system.
@@ -210,6 +223,19 @@ Example response:
 
 Set `audio_format` to `wav` or `mp3`. WAV uses RIFF 24 kHz, 16-bit, mono PCM. MP3 uses 24 kHz, 48 kilobit mono MPEG audio. Decode `audio_base64` on the client to play or save the audio file.
 
+### `POST /speech/synthesize/file`
+
+Converts text to speech and returns raw audio bytes as a downloadable file.
+
+```bash
+curl -X POST http://127.0.0.1:8081/speech/synthesize/file \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Take your medicine after food.","audio_format":"mp3"}' \
+  --output ally-speech.mp3
+```
+
+Use `audio_format` as `wav` or `mp3`, and match the file extension in `--output`.
+
 ### `GET /tools`
 
 Lists available function-calling tools.
@@ -232,6 +258,7 @@ It currently returns a transparent “database not configured” result unless `
 - Speech-to-text uses Azure Speech REST so Ogg Opus uploads from browsers and messaging apps can be handled without the SDK WAV header error.
 - Supported input formats are WAV, MP3, Ogg Opus, and WebM Opus. M4A/MP4 recordings should be converted before upload.
 - Output audio from `/voice/ask` and `/speech/synthesize` is JSON-safe base64.
+- Output audio from `/voice/ask/file` and `/speech/synthesize/file` is returned as direct downloadable audio bytes.
 - Supported output formats are `wav` and `mp3`.
 - `wav` returns content type `audio/wav` and uses RIFF 24 kHz, 16-bit, mono PCM.
 - `mp3` returns content type `audio/mpeg` and uses 24 kHz, 48 kilobit mono MPEG audio.
