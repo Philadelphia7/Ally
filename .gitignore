@@ -7,7 +7,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.ally_index/
+.ally_index/*
+!.ally_index/index.json
 runtime/
 uploads/
 outputs/
@@ -16,4 +17,3 @@ outputs/
 *.m4a
 *.webm
 *.ogg
-
