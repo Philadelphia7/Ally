@@ -4,13 +4,27 @@ Ally is a medication and adherence system device that uses a multimodal sensor t
 
 ## Healthwise RAG API
 
-This repo includes a FastAPI service for concise health question answering over the Healthwise PDF corpus in:
+This repo includes a FastAPI service for concise health question answering over a local Healthwise PDF corpus. By default, the deployed app uses the persisted vector index at:
 
 ```text
-/Users/sam/Documents/Ellipsis-Care/data
+data/index.json
 ```
 
+For rebuilding the index, point `DATA_DIR` in `.env` to a relative or environment-specific folder that contains the source PDFs, for example `./data/source_docs`. The source PDF folder itself does not need to be committed if the generated `data/index.json` is already present.
+
 The API is designed for regular, simple use such as elder-care support. RAG answers are prompted to use plain language and stay around 2 to 3 short sentences unless the user asks for more detail. The `answer` text avoids source names, page references, markdown, bullet points, and hard-to-say abbreviations so it works well for speech playback. When the local documents do not directly cover a question, the assistant should say the local records are limited and then give cautious general health guidance without sounding overconfident.
+
+## Grounding Sources
+
+Responses are grounded first on the local vector index built from standard health guidance documents. The current committed index includes chunks from:
+
+- `Action Framework for the Prevention and Control of Chronic Disease.pdf`
+- `GUIDELINES FOR THE PREVENTION, CARE AND TREATMENT OF PERSONS WITH CHRONIC HEPATITIS B INFECTION.pdf`
+- `WHO model list of essential medicines.pdf`
+- `WHO_DIET, NUTRITION AND THE PREVENTION OF CHRONIC DISEASES.pdf`
+- `WHO_Package of Essential Noncommunicable (PEN) disease interventions for primary health care in low-resou.pdf`
+
+The spoken or displayed `answer` stays simple and source-free, but `/ask` and `/voice/ask` still return citation metadata separately for audit or debugging.
 
 ## What It Does
 
