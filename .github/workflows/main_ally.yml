@@ -5,10 +5,10 @@
 name: Build and deploy Python app to Azure Web App - ally
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+
+# The newer ally-project workflow is the active push deployment.
+# This legacy ally workflow is manual-only because its Azure subscription is disabled/read-only.
 
 jobs:
   build:
@@ -73,4 +73,3 @@ jobs:
         with:
           app-name: 'ally'
           slot-name: 'Production'
-          
